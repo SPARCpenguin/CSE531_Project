@@ -116,7 +116,7 @@ status_t HandleRequest(ServerStruct_t serverStruct, ClientRequest_t request)
 	LockTableNode_t *lockNode = NULL;
 	LockType_t lockType = NO_LOCK;
 	int bytesSent = 0;
-	char filePath[100];
+	char filePath[200];
 
 	/* Based on client table, determine what action to take as well
 	 * as populating clientNode */
@@ -157,7 +157,7 @@ status_t HandleRequest(ServerStruct_t serverStruct, ClientRequest_t request)
                         else if(strcmp(modeString, "write") == 0)
                         {
                             lockType = WRITE_LOCK;
-                            strcpy(mode, "w");
+                            strcpy(mode, "w+");
                             validArgs = OK;
                         }
                         else if(strcmp(modeString, "readwrite") == 0)

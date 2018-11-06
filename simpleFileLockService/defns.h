@@ -11,7 +11,7 @@
 #define INCARNATION_LOCKFILE "incarnation_LOCK_"
 #define INCARNATION_FILE "incarnation_"
 
-#define MAX_CMD_LEN 100
+#define MAX_CMD_LEN 200
 
 typedef int bool;
 #define true 1
@@ -19,17 +19,17 @@ typedef int bool;
 
 typedef struct ClientRequest_t
 {
-	char machineName[24];  /* Name of machine on which client is running */
+	char machineName[100]; /* Name of machine on which client is running */
 	int clientNumber;      /* Client number */
 	int requestNumber;     /* Request number of client */
 	int clientIncarnation; /* Incarnation number of client’s machine */
-	char operation[80];    /* File operation (actual request) client sends to server */
+	char operation[200];   /* File operation (actual request) client sends to server */
 }ClientRequest_t;
 
 typedef struct ServerResponse_t
 {
-    int returnValue;        /* Integer return value of the operation */
-    char returnString[100]; /* Ascii string associated with the return value */
+    int returnValue;         /* Integer return value of the operation */
+    char returnString[1024]; /* Ascii string associated with the return value */
 }ServerResponse_t;
 
 typedef struct ClientStruct_t
@@ -59,7 +59,7 @@ typedef struct ServerStruct_t
 typedef struct ClientTableNode_t
 {
 	struct ClientTableNode_t *next;  /* Pointer to next entry in the list */
-    char machineName[24];            /* Client machine name */
+    char machineName[100];           /* Client machine name */
 	int clientNumber;                /* Client number */
 	int requestNumber;               /* Current request number */
 	int clientIncarnation;           /* Current incarnation number of client */
@@ -85,8 +85,8 @@ typedef enum RequestAction_t
 typedef struct LockTableNode_t
 {
 	struct LockTableNode_t *next;
-	char fileName[80];
-	char machineName[24];
+	char fileName[200];
+	char machineName[100];
 	int clientNumber;
 	LockType_t lockStatus;
 	FILE *fileHandle;
