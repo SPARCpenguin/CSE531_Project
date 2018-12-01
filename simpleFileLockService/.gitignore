@@ -3,3 +3,6 @@
 /server
 /server.o
 /bin/
+/FT_SimpleFileLock_Server.o
+/SimpleFileLock_Client.o
+/SimpleFileLock_Server.o
