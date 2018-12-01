@@ -1,16 +1,22 @@
-all: server client
+all: FT_SimpleFileLock_Server SimpleFileLock_Server SimpleFileLock_Client
 
 clean:
-	rm server client *.o
+	rm bin/* *.o
 
-server: server.o
-	gcc -Wall server.o -o server
+FT_SimpleFileLock_Server: FT_SimpleFileLock_Server.o
+	g++ -Wall -L../logcabin/build FT_SimpleFileLock_Server.o -o bin/FT_SimpleFileLock_Server -llogcabin -lprotobuf -lpthread -lcryptopp
 
-client: client.o
-	gcc -Wall client.o -o client
+SimpleFileLock_Server: SimpleFileLock_Server.o
+	gcc -Wall SimpleFileLock_Server.o -o bin/SimpleFileLock_Server
 
-server.o: server.c defns.h
-	gcc -O0 -g -Wall -DDEBUG -c server.c
+SimpleFileLock_Client: SimpleFileLock_Client.o
+	gcc -Wall SimpleFileLock_Client.o -o bin/SimpleFileLock_Client
 
-client.o: client.c defns.h
-	gcc -O0 -g -Wall -DDEBUG -c client.c
+FT_SimpleFileLock_Server.o: FT_SimpleFileLock_Server.cc
+	g++ -O0 -g -Wall -fpermissive -DDEBUG -I../logcabin/include/ -c FT_SimpleFileLock_Server.cc
+
+SimpleFileLock_Server.o: SimpleFileLock_Server.c defns.h
+	gcc -O0 -g -Wall -DDEBUG -c SimpleFileLock_Server.c
+
+SimpleFileLock_Client.o: SimpleFileLock_Client.c defns.h
+	gcc -O0 -g -Wall -DDEBUG -c SimpleFileLock_Client.c

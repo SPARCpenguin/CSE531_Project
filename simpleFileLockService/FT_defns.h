@@ -1,7 +1,3 @@
-#include <stdio.h>      /* for printf() and fprintf() */
-#include <errno.h>      /* for errno */
-#include <arpa/inet.h>  /* for sockaddr_in and inet_addr() */
-
 #define printError(errorMsg, ...) fprintf(stderr, "Error: %s:%d %s() - " errorMsg "\n", __FILE__, __LINE__, __func__, __VA_ARGS__)
 #define printWarning(errorMsg, ...) fprintf(stderr, "Warning: %s:%d %s() - " errorMsg "\n", __FILE__, __LINE__, __func__, __VA_ARGS__)
 #define printInfo(errorMsg, ...) fprintf(stderr, "Info: %s:%d %s() - " errorMsg "\n", __FILE__, __LINE__, __func__, __VA_ARGS__)
@@ -12,10 +8,6 @@
 #define INCARNATION_FILE "incarnation_"
 
 #define MAX_CMD_LEN 200
-
-typedef int bool;
-#define true 1
-#define false 0
 
 typedef struct ClientRequest_t
 {
@@ -89,7 +81,8 @@ typedef struct LockTableNode_t
 	char machineName[100];
 	int clientNumber;
 	LockType_t lockStatus;
-	FILE *fileHandle;
+	bool isFileOpen;
+	int byteOffset;
 }LockTableNode_t;
 
 
