@@ -170,8 +170,8 @@ status_t executeCommands(ClientStruct_t *clientStruct)
             {
                 /* Set receive timeout to 1 second */
                 struct timeval tv;
-                tv.tv_sec = 1;
-                tv.tv_usec = 0;
+                tv.tv_sec = 0;
+                tv.tv_usec = 100000;
                 if (setsockopt(clientStruct->sockfd, SOL_SOCKET, SO_RCVTIMEO,&tv,sizeof(tv)) < 0) {
                     printErrno("Can't set socket timeout%s", "");
                 }

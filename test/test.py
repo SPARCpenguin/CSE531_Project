@@ -1,6 +1,8 @@
 import paramiko
 import os
+import time
 from cProfile import run
+import cmd
 
 ###################
 # Global Settings #
@@ -8,12 +10,15 @@ from cProfile import run
 sshKey = paramiko.RSAKey.from_private_key_file(os.path.expanduser("~/simpleFileLockServiceSSH"))
 serverPrefix = "server_"
 clientPrefix = "client_"
-serverPort = "1234"
-sourceBinaryPath = os.path.expanduser("~/git/CSE531_Project/simpleFileLockService/bin/")
-serverBinaryPath = "/home/server/bin/"
-clientBinaryPath = "/home/client/bin/"
-serverBinaryName = "FT_SimpleFileLock_Server"
-clientBinaryName = "FT_SimpleFileLock_Client"
+serverPort = "9001"
+homePath = "/mnt/nfsShare"
+logCabinBinaryName = "LogCabin"
+ft_serverBinaryName = "FT_SimpleFileLock_Server"
+serverBinaryName = "SimpleFileLock_Server"
+clientBinaryName = "SimpleFileLock_Client"
+clusterServersNoSpace = "server_1:5254,server_2:5254,server_3:5254,server_4:5254,server_5:5254"
+clusterServers = "server_1:5254 server_2:5254 server_3:5254 server_4:5254 server_5:5254"
+scriptName = "StarWars.cmd"
 
 def runTest(numClients, numServers, script):
     """
@@ -24,25 +29,59 @@ def runTest(numClients, numServers, script):
     starts up the requested number of clients.
     """
     
-    # Generate the server startup string
-    serverKillString = "killall -9 " + serverBinaryName
-    serverExecString = "nohup " + serverBinaryName + " " + serverPort + "&"
+    # Kill any SFL service binaries that are running
+    cmd = "killall -9 " + serverBinaryName
+    print cmd
+    os.system(cmd)
+    cmd = "killall -9 " + ft_serverBinaryName
+    print cmd
+    os.system(cmd)
     
-    # Copy client and server executables
+    # Loop through servers and kill any previously running processes
     for i in range(0,numServers):
         host = serverPrefix + str(i + 1)
-        
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(hostname=host, username="server", pkey=sshKey)
-        ssh.exec_command(serverKillString)
-        ssh.exec_command("mkdir " + serverBinaryPath)
-        sftp = ssh.open_sftp()
-        sftp.put(sourceBinaryPath + serverBinaryName, serverBinaryPath + serverBinaryName)
-        sftp.close()
-        ssh.exec_command("chmod +x " + serverBinaryPath + serverBinaryName)
-        #ssh.exec_command("source ~/.bashrc")
-        #ssh.exec_command(serverExecString)
+        ssh.exec_command("killall -9 " + logCabinBinaryName)
+        
+        # We only need to clean up the storage directory once, so do it on the last round
+        if i == (numServers - 1):
+            ssh.exec_command("rm -rf " + homePath + "/test/storage")
+        
         ssh.close()
 
-runTest(1, 1, "./scripts/StarTrek.cmd")
+    # Loop through servers and start up logcabin cluster
+    for i in range(0,numServers):
+        host = serverPrefix + str(i + 1)
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(hostname=host, username="server", pkey=sshKey)
+
+        # Bootstrap logCabin to designate an inital leader
+        if i == 0:
+            ssh.exec_command("screen -m -d bash -c \"cd " + homePath + "/test && ../logcabin/build/" + logCabinBinaryName + " --config logCabin-" + host + ".conf --bootstrap\"")
+            time.sleep(1)
+        
+        # Bring up logCabin server
+        ssh.exec_command("screen -m -d bash -c \"cd " + homePath + "/test && ../logcabin/build/" + logCabinBinaryName + " --config logCabin-" + host + ".conf\"")
+        
+        ssh.close()
+        
+    # Reconfigure the cluster to include all logCabin servers
+    os.system("bash -c \"cd /nfsShare/ && logcabin/build/Examples/Reconfigure --cluster=" + clusterServersNoSpace + " set " + clusterServers + "\"")
+
+    # Start up SFL service
+    service = ""
+    if numServers > 1:
+        service = ft_serverBinaryName
+    else:
+        service = serverBinaryName
+        
+    os.system("screen -m -d bash -c \"cd /nfsShare/ && simpleFileLockService/bin/" + service + "\"")
+
+    time.sleep(5)
+
+    os.system("bash -c \"cd /nfsShare/ && simpleFileLockService/bin/" + clientBinaryName + " 127.0.0.1 test 1 " + serverPort + " test/" + scriptName + "\"")
+
+runTest(1, 5, "./scripts/StarTrek.cmd")
