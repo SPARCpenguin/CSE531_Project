@@ -478,6 +478,7 @@ status_t HandleRequest(ServerStruct_t serverStruct, ClientRequest_t request)
                 }
 
                 fflush(lockNode->fileHandle);
+                system("sync");
             }
         }
         else

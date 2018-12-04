@@ -15,5 +15,5 @@ lseek BestSpaceOpera.txt 426
 write BestSpaceOpera.txt "L"
 close BestSpaceOpera.txt
 open BestSpaceOpera.txt read
-read BestSpaceOpera.txt 555
+read BestSpaceOpera.txt 551
 close BestSpaceOpera.txt

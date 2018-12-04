@@ -26,22 +26,26 @@ clusterServers = "server_1:5254 server_2:5254 server_3:5254 server_4:5254 server
 goldenFiles = ["Space: the final frontier. These are the voyages of the starship Enterprise. Its continuing mission: to explore strange new worlds, to seek out new life and new civilizations, to boldly go where no one has gone before","A long time ago in a galaxy far, far away... STAR WARS It is a period of civil war. Rebel spaceships, striking from a hidden base, have won their first victory against the evil Galactic Empire. During the battle, Rebel spies managed to steal secret plans to the Empire's ultimate weapon, the DEATH STAR, an armored space station with enough power to destroy an entire planet. Pursued by the Empire's sinister agents, Princess Leia races home aboard her starship, custodian of the stolen plans that can save her people and restore freedom to the galaxy"]
 
 class clientThread (threading.Thread):
-    def __init__(self, threadID, clientName, sshSession, scriptName):
+    def __init__(self, threadID, clientName, sshSession, scriptName, runIndex):
         threading.Thread.__init__(self)
         self.threadID = threadID
         self.clientName = clientName
         self.sshSession = sshSession
         self.scriptName = scriptName
+        self.runIndex = runIndex
     def run(self):
         # Open an SSH session and write commands to stdin
         stdin, stdout, stderr = self.sshSession.exec_command("bash")
         stdin.write("cd " + testPath + "\n")
-        stdin.write("../simpleFileLockService/bin/" + clientBinaryName + " " + socket.gethostbyname("server_1") + " " + self.clientName + " 1 " + serverPort + " " + self.scriptName + "\n")
+        cmd = "../simpleFileLockService/bin/" + clientBinaryName + " " + socket.gethostbyname("server_5") + " " + self.clientName + " 1 " + serverPort + " " + self.scriptName + " > log/" + str(self.runIndex) + "_" + self.clientName + "_cmd.log 2>&1\n"
+        print cmd
+        stdin.write(cmd)
         stdin.write("exit\n")
         stdout.channel.exit_status_ready()
+        time.sleep(1)
         print "Client " + str(self.threadID) + " finished\n"
         
-def runTest(numClients, numServers, scripts, numFailures):
+def runTest(numClients, numServers, scripts, numFailures, runIndex):
     """
     Run a single test of the Fault Tolerant SimpleFileLockService
     This takes numClients, numServers, and the test scripts to run.
@@ -53,7 +57,7 @@ def runTest(numClients, numServers, scripts, numFailures):
     thread = [None]*numClients
     serverSSH = [None]*numServers
     
-    # Loop through clients and kill and previously running processes
+    # Loop through clients and kill any previously running processes
     for i in range(0,numClients):
         # Open Client SSH sessions
         host = clientPrefix + str(i + 1)
@@ -75,92 +79,103 @@ def runTest(numClients, numServers, scripts, numFailures):
         # Need to kill log cabin, remove storage directory, and kill FT SFL service
         if numServers > 1:
             # The log cabin service is running on every server, so kill it
-            stdin, stdout, stderr = serverSSH[i].exec_command("killall -9 " + logCabinBinaryName)
-            stdout.channel.exit_status_ready()
+            stdin, stdout, stderr = serverSSH[i].exec_command("bash")
+            stdin.write("killall -9 " + logCabinBinaryName + "\n")
 
             if i == (numServers - 1):
                 # We only need to clean up the storage directory once
                 # and since the filesystem is shared, we'll just remove the
                 # directory after connecting to the last server
-                stdin, stdout, stderr = serverSSH[i].exec_command("rm -rf " + testPath + "/storage")
-                stdout.channel.exit_status_ready()
-
+                stdin.write("rm -rf " + testPath + "/storage\n")
                 # The simple file locking service only needs to run on one
                 # machine, so the last server will be used for this as wel.
                 # kill any running copies
-                stdin, stdout, stderr = serverSSH[i].exec_command("killall -9 " + ft_serverBinaryName)
-                stdout.channel.exit_status_ready()
+                stdin.write("killall -9 " + ft_serverBinaryName + "\n")
 
+            stdin.write("exit\n")
+            stdout.channel.exit_status_ready()
         # Just need to kill SFL service
         else:
-            stdin, stdout, stderr = serverSSH[i].exec_command("killall -9 " + serverBinaryName + " && rm -rf " + testPath + "/*.txt && rm -rf " + testPath + "/incarnation*")
+            stdin, stdout, stderr = serverSSH[i].exec_command("bash")
+            stdin.write("killall -9 " + serverBinaryName + "\n")
+            stdin.write("rm -rf " + testPath + "/*.txt\n")
+            stdin.write("rm -rf " + testPath + "/incarnation*\n")
+            stdin.write("exit\n")
             stdout.channel.exit_status_ready()
+
+    time.sleep(1)
 
     # Loop through servers and start up logcabin cluster
     for i in range(0,numServers):
+        host = serverPrefix + str(i + 1)
         # Need to startup log cabin as well as FT SFL service
         if numServers > 1:
             # Bootstrap logCabin to designate an inital leader.
             # We'll use the first server for this
             if i == 0:
-                #serverSSH[i].exec_command("screen -m -d bash -c \"cd " + testPath + "/test && ../logcabin/build/" + logCabinBinaryName + " --config logCabin-" + host + ".conf --bootstrap\"")
                 stdin, stdout, stderr = serverSSH[i].exec_command("bash")
+                cmd = "cd " + testPath + "\n"
+                print cmd
                 stdin.write("cd " + testPath + "\n")
-                stdin.write("../logcabin/build/" + logCabinBinaryName + " --config logCabin-" + host + ".conf --bootstrap\n")
+                cmd = "../logcabin/build/" + logCabinBinaryName + " --config logCabin-" + host + ".conf --bootstrap > log/" + str(runIndex) + "_" + host + "_bootstrap.log 2>&1\n"
+                print cmd
+                stdin.write(cmd)
                 stdin.write("exit\n")
                 stdout.channel.exit_status_ready()
+                time.sleep(1)
                 
             # Bring up logCabin server on each server
-            #serverSSH[i].exec_command("screen -m -d bash -c \"cd " + testPath + "/test && ../logcabin/build/" + logCabinBinaryName + " --config logCabin-" + host + ".conf\"")
             stdin, stdout, stderr = serverSSH[i].exec_command("bash")
             stdin.write("cd " + testPath + "\n")
-            stdin.write("screen -d -m ../logcabin/build/" + logCabinBinaryName + " --config logCabin-" + host + ".conf\n")
+            cmd = "nohup ../logcabin/build/" + logCabinBinaryName + " --config logCabin-" + host + ".conf > log/" + str(runIndex) + "_" + host + "_logcabin.log 2>&1 &\n"
+            print cmd
+            stdin.write(cmd)
             stdin.write("exit\n")
             stdout.channel.exit_status_ready()
-            time.sleep(.5)
-    
+            time.sleep(1)
+     
             if i == (numServers - 1):
                 # Reconfigure the cluster to include all logCabin servers
-                #serverSSH[i].exec_command("bash -c \"cd /nfsShare/ && logcabin/build/Examples/Reconfigure --cluster=" + clusterServersNoSpace + " set " + clusterServers + "\"")
-                stdin, stdout, stderr = serverSSH[i].exec_command("bash")
+                stdin, stdout, stderr = clientSSH[0].exec_command("bash")
                 stdin.write("cd " + testPath + "\n")
-                stdin.write("../logcabin/build/Examples/Reconfigure --cluster=" + clusterServersNoSpace + " set " + clusterServers + "\n")
+                cmd = "../logcabin/build/Examples/Reconfigure --cluster=" + clusterServersNoSpace + " set " + clusterServers + " > log/" + str(runIndex) + "_client_1_reconfigure.log 2>&1\n"
+                print cmd
+                stdin.write(cmd)
                 stdin.write("exit\n")
                 stdout.channel.exit_status_ready()
-            
+                time.sleep(1)
+
                 # Start up FT Simple File Locking Service
-                #serverSSH[i].exec_command("screen -m -d bash -c \"cd " + testPath + " && simpleFileLockService/bin/" + ft_serverBinaryName + "\"")
                 stdin, stdout, stderr = serverSSH[i].exec_command("bash")
                 stdin.write("cd " + testPath + "\n")
-                stdin.write("screen -d -m ../simpleFileLockService/bin/ --cluster=" + ft_serverBinaryName + "\n")
+                stdin.write("nohup ../simpleFileLockService/bin/" + ft_serverBinaryName + " > log/" + str(runIndex) + "_" + host + "_simplefilelockservice.log 2>&1 &\n")
                 stdin.write("exit\n")
                 stdout.channel.exit_status_ready()
-                time.sleep(.5)
+                time.sleep(1)
         # Just need to startup SFL service
         else:
             # Start up Simple File Locking Service
-            #serverSSH[i].exec_command("screen -m -d bash -c \"cd " + testPath + " && simpleFileLockService/bin/" + serverBinaryName + " 9001\"")
             stdin, stdout, stderr = serverSSH[i].exec_command("bash")
             stdin.write("cd " + testPath + "\n")
-            stdin.write("screen -d -m ../simpleFileLockService/bin/" + serverBinaryName + " 9001\n")
+            stdin.write("nohup ../simpleFileLockService/bin/" + serverBinaryName + " 9001 > log/" + str(runIndex) + "_" + host + "_simplefilelockservice.log 2>&1 &\n")
             stdin.write("exit\n")
             stdout.channel.exit_status_ready()
             time.sleep(.5)
-
+ 
     # Loop through the client list and kick off the client threads
     for i in range(0,numClients):
         host = clientPrefix + str(i + 1)
-        thread[i] = clientThread(i, host, clientSSH[i], scripts[i])
+        thread[i] = clientThread(i, host, clientSSH[i], scripts[i], runIndex)
         thread[i].start()
         print "Client " + str(i) + " started"
-        
+         
     # If a failure is requested, trigger the failure(s)
     if numFailures > 0:
         print("Failure requested")
-        
+         
         # Delay a little to ensure the threads spawned and started executing
         time.sleep(.2)
-        
+         
         # Kill requested number of servers
         for i in range(0,numFailures):      
             if numServers > 1:
@@ -169,30 +184,50 @@ def runTest(numClients, numServers, scripts, numFailures):
             else:
                 stdin, stdout, stderr = serverSSH[i].exec_command("killall -9 " + serverBinaryName)
                 stdout.channel.exit_status_ready()
-
+ 
         # Need to kill clients as well so the script won't hang on the "join" call
         for i in range(0,numClients):      
                 stdin, stdout, stderr = clientSSH[i].exec_command("killall -9 " + clientBinaryName)
                 stdout.channel.exit_status_ready()
-
+ 
     print "waiting to join"
     # Wait for client threads to exit
     for i in range(0,numClients):
         thread[i].join()
-        
-    print "done!"
-                 
-    time.sleep(4)
          
+    print "done!"
+     
     testPassed = True
+     
+    if numServers > 1:
+        for i in range(0,numClients):
+            outfile = "client_" + str(i+1) + ":BestSpaceOpera.txt"
+            stdin, stdout, stderr = clientSSH[i].exec_command("bash")
+            stdin.write("cd " + testPath + "\n")
+            cmd = "../logcabin/build/Examples/TreeOps --cluster=" + clusterServersNoSpace + " read " + outfile + " --verbosity=SILENT\n"
+            print cmd
+            stdin.write(cmd)
+            stdin.write("exit\n")
+            stdout.channel.exit_status_ready()
+            time.sleep(1)
             
-    for i in range(0,numClients):
-        outFile = "/nfsShare/test/client_" + str(i+1) + ':BestSpaceOpera.txt'
-        f = open(outFile, 'r')
-        output = f.read()
-        
-        if output != goldenFiles[i]:
-            testPassed = False
+            output = stdout.read()
+            
+            print output
+            print goldenFiles[i]
+            
+            if output != goldenFiles[i]:
+                testPassed = False
+    else:
+        time.sleep(2)
+     
+        for i in range(0,numClients):
+            outFile = "/nfsShare/test/client_" + str(i+1) + ':BestSpaceOpera.txt'
+            f = open(outFile, 'r')
+            output = f.read()
+
+            if output != goldenFiles[i]:
+                testPassed = False
 
     # Close SSH sessions
     for i in range(0,numClients):
@@ -209,8 +244,8 @@ logFile = "/nfsShare/test/testStatus.out"
 
 f = open(logFile, 'w')
 
-for i in range(1,10):
-    status = runTest(2,1, scripts, 0)
+for i in range(0,100l):
+    status = runTest(2,5, scripts, 0, i)
     value = ""
     
     if status == True:
