@@ -476,6 +476,8 @@ status_t HandleRequest(ServerStruct_t serverStruct, ClientRequest_t request)
                     clientNode->requestNumber = request.requestNumber;
                     readyToTransmit = OK;
                 }
+
+                fflush(lockNode->fileHandle);
             }
         }
         else
